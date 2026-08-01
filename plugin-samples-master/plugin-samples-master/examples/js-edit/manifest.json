@@ -1,0 +1,40 @@
+{
+  "manifest_version": 1,
+  "version": "4.6.0",
+  "type": "APP",
+  "name": {
+    "ja": "JSEdit for kintone",
+    "en": "JSEdit for kintone",
+    "zh": "JSEdit for kintone"
+  },
+  "description": {
+    "ja": "kintoneのJavaScriptカスタマイズをブラウザから行うことができるプラグインです。",
+    "en": "This plugin enables a code editor for kintone.",
+    "zh": "This plugin enables a code editor for kintone."
+  },
+  "icon": "image/image.png",
+  "homepage_url": {
+    "ja":"https://cybozu.dev/ja/kintone/tips/development/plugins/sample-plugin/jsedit-for-kintone-plugin/",
+    "en":"https://kintone.dev/en/plugins/advanced-samples/js-edit-plug-in/",
+    "zh":"https://cybozudev.kf5.com/hc/kb/article/1010754/"
+  },
+  "desktop": {
+  },
+  "config": {
+    "html": "html/config.html",
+    "js": [
+      "https://js.cybozu.com/ace/v1.4.1/ace.js",
+      "https://js.cybozu.com/ace/v1.4.1/ext-language_tools.js",
+      "https://unpkg.com/@kintone/kintone-ui-component@0.4.2/dist/kintone-ui-component.min.js",
+      "js/config/common.js",
+      "js/config/ui.js",
+      "js/config/service.js",
+      "js/config/main.js"
+    ],
+    "css": [
+      "https://unpkg.com/@kintone/kintone-ui-component@0.4.2/dist/kintone-ui-component.min.css",
+      "css/config.css"
+    ],
+    "required_params": []
+  }
+}

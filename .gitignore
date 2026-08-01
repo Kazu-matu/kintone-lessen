@@ -1,0 +1,8 @@
+# Ignore large binary archives and executable bundles
+*.zip
+*.mcpb
+*.pdf
+
+# Environment files and sensitive configs
+.env
+*.token

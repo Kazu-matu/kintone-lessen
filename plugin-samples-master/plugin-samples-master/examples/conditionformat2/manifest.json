@@ -1,0 +1,43 @@
+{
+    "manifest_version": 1,
+    "version": "3.2.9",
+    "type": "APP",
+    "name": {
+        "ja": "条件書式プラグイン",
+        "en": "Conditional Format",
+        "zh": "条件格式插件"
+    },
+    "description": {
+        "ja": "条件により表示するアイテムの色、背景色等を変更するプラグインです。",
+        "en": "This plug-in changes colors and styles of fields",
+        "zh": "根据条件，更改字段颜色、背景色的插件。"
+    },
+    "icon": "image/icon.png",
+    "homepage_url": {
+        "ja": "https://cybozu.dev/ja/kintone/tips/development/plugins/sample-plugin/conditionformat-v2-plugin/",
+        "en": "https://cybozu.dev/ja/kintone/tips/development/plugins/sample-plugin/conditionformat-v2-plugin/",
+        "zh": "https://cybozudev.kf5.com/hc/kb/article/1011206/"
+    },
+    "desktop": {
+        "js": [
+            "thirdparties/luxon.min.js",
+            "thirdparties/jquery.min.js",
+            "js/desktop.js"
+        ],
+        "css": [
+        ]
+    },
+    "config": {
+        "html": "html/config.html",
+        "js": [
+            "thirdparties/jquery.min.js",
+            "thirdparties/jsrender.min.js",
+            "thirdparties/jqColorPicker.min.js",
+            "js/config.js"
+        ],
+        "css": [
+            "css/51-modern-default.css",
+            "css/config.css"
+        ]
+    }
+}

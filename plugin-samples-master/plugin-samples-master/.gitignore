@@ -1,0 +1,8 @@
+plugin.zip
+*.ppk
+*.zip
+
+node_modules/
+
+# macOS system files
+.DS_Store

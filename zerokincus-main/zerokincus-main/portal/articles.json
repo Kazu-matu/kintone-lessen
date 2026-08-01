@@ -1,0 +1,56 @@
+[
+  {
+    "url": "https://zerokincus.connpass.com/",
+    "title": "ゼロキンカス道場（イベントグループ）",
+    "desc": "初心者向け勉強会「ゼロキンカス道場」のconnpassグループです。",
+    "tag": "connpass",
+    "date": "2026-05-04",
+    "cta": "詳しく見る",
+    "thumb": "https://github.com/zerokincus/zerokincus/blob/6f4c762f37a3b46cb690cb0b9aed2cf5ae93abc2/og-image.png?raw=true"
+  },
+  {
+    "url": "https://note.com/shokun1108/m/m07251b1e4d43",
+    "title": "ゼロキンカス道場（ゼロから始めるkintoneカスタマイズ）",
+    "desc": "非エンジニアでもkintoneカスタマイズをやりたい！著者・松田正太郎によるnoteマガジン。",
+    "tag": "note",
+    "date": "2026-04-18",
+    "cta": "マガジンを読む",
+    "thumb": "https://assets.st-note.com/production/uploads/images/223916487/273edd25fe1f1429945bd9e407ffdfed.png?width=432&dpr=2"
+  },
+  {
+    "url": "https://www.youtube.com/@pjasunote",
+    "title": "アスノート業務改善道場チャンネル",
+    "desc": "kintoneカスタマイズの実践的なノウハウを動画で解説しています。",
+    "tag": "YouTube",
+    "date": "2026-04-18",
+    "cta": "動画を見る",
+    "thumb": ""
+  },
+  {
+    "url": "https://github.com/zerokincus/zerokincus/tree/main/doc/practice",
+    "title": "カスタマイズスペシャリスト練習問題",
+    "desc": "本書に対応した認定試験の練習問題157問を無料公開中。",
+    "tag": "サイト内",
+    "date": "2026-04-20",
+    "cta": "詳しく見る",
+    "thumb": ""
+  },
+  {
+    "url": "https://cybozu.dev/ja/",
+    "title": "cybozu developer network",
+    "desc": "kintone APIの公式ドキュメントはこちらから。本書と合わせて活用してください。",
+    "tag": "公式",
+    "date": "2026-04-18",
+    "cta": "サイトを見る",
+    "thumb": ""
+  },
+  {
+    "url": "https://amzn.to/4cGhJag",
+    "title": "ゼロから始めるkintoneカスタマイズ入門",
+    "desc": "プログラミング未経験者でもマスターできる！日経BP刊行。",
+    "tag": "書籍",
+    "date": "2026-04-18",
+    "cta": "購入する",
+    "thumb": "https://raw.githubusercontent.com/zerokincus/zerokincus/main/cover.png"
+  }
+]

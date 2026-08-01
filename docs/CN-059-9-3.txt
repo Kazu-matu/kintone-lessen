@@ -1,0 +1,243 @@
+# CN-059-9-3 課題仕様書
+
+## 1. 目的・学習内容
+
+- **【目的】:** `Promise` / `async/await` を用いた非同期制御および分岐処理（サブテーブル内の新規作成と更新の自動判定）ができるようになること。
+
+---
+
+## 2. 使用アプリ
+
+9-1で作成したアプリを引き続き利用すること。
+
+- **11** 【入社前研修】受注管理
+- **12** 【入社前研修】受注明細
+- **13** 【入社前研修】顧客マスタ
+- **14** 【入社前研修】商品マスタ
+
+---
+
+## 3. 機能要件
+
+### ■ 要件①: サブテーブルを含む値のレコード登録 ＆ 更新
+受注管理アプリの `SUBTABLE` を含む値を、受注明細アプリにレコード登録および更新する。
+
+1. **ボタンの設置:**
+   - 詳細画面ヘッダースペースに **「テーブル展開#3」** ボタンを設置する。
+2. **実行条件:**
+   - 上記ボタンがクリックされたときにテーブル展開を実行する。
+   - **「受注明細番号」がある場合:** レコードを更新する。
+   - **「受注明細番号」がない場合:** レコードを新規登録し、受注管理アプリの `SUBTABLE` に受注明細番号を保存する。
+3. **コピー対象フィールド（受注管理アプリ → 受注明細アプリ）:**
+   - `受注管理No`
+   - `受注日`
+   - `顧客コード`
+   - `数量`
+   - `小計`
+   - `商品コード`
+
+### ■ 要件① 実装詳細
+
+1. **データ取得:**
+   - `event.record` を用いてレコードの情報を取得する。
+   - 各レコード内の `SUBTABLE` の値を取得し、受注明細アプリに登録・更新する値を取り出す。
+2. **新規作成と更新の分岐処理手順:**
+   - **[受注明細番号がない行（新規登録）]:**
+     - 新規登録用パラメータを作成する。
+     - `/k/v1/records.json` (POST) を用いて受注明細アプリにレコードを新規作成する。
+     - 返却値から受注明細アプリのレコードIDを取得。
+     - 受注管理アプリ更新用パラメータを作成する。
+   - **[受注明細番号がある行（既存更新）]:**
+     - 受注明細番号をキーに `/k/v1/records.json` (PUT) で更新対象レコードを取得・更新する。
+3. **親レコード更新:**
+   - 明細アプリの登録・更新処理が完了してから、`/k/v1/record.json` (PUT) で受注管理レコードを更新・反映する。
+
+---
+
+## 4. 設計仕様 & 制約事項
+
+> [!IMPORTANT]
+> **学習要件:**  
+> 学習のため、`@kintone/rest-api-client` は**使用せず**に実装してください。
+
+- **片方向連携:** コピーの方向は「受注app → 明細app」への片方向とする。
+- **重複登録:** 本課題では、更新処理への対応は不要。明細アプリに重複登録されて可。
+
+---
+
+## 5. 導入・操作手順ガイド
+
+本カスタマイズプログラムを受注管理アプリに適用し、実行確認するための手順です。
+
+### ステップ 1: JavaScriptファイルの作成
+1. 下記の「6. 模範解答コード」をすべてコピーします。
+2. テキストエディタ（VS Codeやメモ帳等）に貼り付け、文字コード **UTF-8 (BOMなし)** で `table_expand_3.js` という名前で保存します。
+
+### ステップ 2: kintoneアプリへの設定
+1. **「【入社前研修】受注管理」** アプリを開きます。
+2. 画面右上の歯車マーク ⚙ （設定）をクリックします。
+3. **「設定」タブ ＞ 「カスタマイズ／サービス連携」 ＞ 「JavaScript / CSSによるカスタマイズ」** を選択します。
+4. 「PC用JavaScriptファイル」の **「ファイルを選んで追加」** をクリックし、作成した `table_expand_3.js` をアップロードします。
+5. 画面左上の **「保存」** ボタンをクリックします。
+6. 画面右上の **「アプリを更新」** ボタンをクリックし、設定を適用します。
+
+### ステップ 3: 動作確認
+1. 受注管理アプリでテストレコードの詳細画面（`app.record.detail.show`）を開きます。
+2. ヘッダー領域に表示された **「テーブル展開#3」** ボタンをクリックします。
+3. 未登録の行は明細アプリに新規POST登録され親テーブルに番号が追記されること、すでに番号がある行は明細アプリ上で更新(PUT)されることを確認します。
+
+---
+
+## 6. 模範解答コード (JavaScript / async/await 版)
+
+```javascript
+/**
+ * 課題名: CN-059-9-3 明細登録 ＆ 更新分岐処理（async/await + Promise.all版）
+ * 対象アプリ: 【入社前研修】受注管理 (AppID: 11)
+ */
+(function() {
+  'use strict';
+
+  // 転送先「受注明細」アプリのID
+  const DETAIL_APP_ID = 12;
+
+  kintone.events.on('app.record.detail.show', function(event) {
+    const record = event.record;
+
+    const headerMenuEl = kintone.app.getHeaderMenuSpaceElement();
+    if (!headerMenuEl || document.getElementById('btn_table_expand_3')) {
+      return event;
+    }
+
+    const btn = document.createElement('button');
+    btn.id = 'btn_table_expand_3';
+    btn.innerText = 'テーブル展開#3';
+    btn.className = 'kintoneplugin-button-normal';
+    btn.style.margin = '10px';
+
+    btn.addEventListener('click', async function() {
+      const subtable = record.Table ? record.Table.value : [];
+      if (!subtable || subtable.length === 0) {
+        alert('展開対象の明細行が存在しません。');
+        return;
+      }
+
+      // 新規作成行と既存更新行に分類
+      const newRows = [];
+      const updateRecords = [];
+
+      subtable.forEach(function(row, index) {
+        const detailNo = row.value.受注明細番号 ? row.value.受注明細番号.value : '';
+        const payload = {
+          '受注番号': { value: record.受注管理No.value },
+          '受注日': { value: record.受注日.value },
+          '顧客コード': { value: record.顧客コード.value },
+          '商品コード': { value: row.value.商品コード.value },
+          '数量': { value: row.value.数量.value },
+          '小計': { value: row.value.小計.value }
+        };
+
+        if (detailNo) {
+          // 受注明細番号がある場合 -> 既存更新
+          updateRecords.push({
+            id: detailNo,
+            record: payload
+          });
+        } else {
+          // 受注明細番号がない場合 -> 新規登録対象
+          newRows.push({
+            rowIndex: index,
+            record: payload
+          });
+        }
+      });
+
+      try {
+        const apiPromises = [];
+
+        // 1. 新規登録処理 (POST) の準備
+        if (newRows.length > 0) {
+          const recordsToPost = newRows.map(function(item) { return item.record; });
+          const postPromise = kintone.api(
+            kintone.api.url('/k/v1/records.json', true),
+            'POST',
+            { app: DETAIL_APP_ID, records: recordsToPost }
+          ).then(function(resp) {
+            return newRows.map(function(item, idx) {
+              return {
+                rowIndex: item.rowIndex,
+                newDetailId: resp.ids[idx]
+              };
+            });
+          });
+          apiPromises.push(postPromise);
+        } else {
+          apiPromises.push(Promise.resolve([]));
+        }
+
+        // 2. 既存更新処理 (PUT) の準備
+        if (updateRecords.length > 0) {
+          const putPromise = kintone.api(
+            kintone.api.url('/k/v1/records.json', true),
+            'PUT',
+            { app: DETAIL_APP_ID, records: updateRecords }
+          );
+          apiPromises.push(putPromise);
+        } else {
+          apiPromises.push(Promise.resolve());
+        }
+
+        // ★ Promise.all を await してPOSTとPUTの並列処理完了を同期待機
+        const results = await Promise.all(apiPromises);
+        const newIdMappings = results[0]; // 新規作成時のIDマッピング
+
+        // サブテーブルのコピーを作成
+        const updatedTable = subtable.map(function(row) {
+          return {
+            id: row.id,
+            value: Object.assign({}, row.value)
+          };
+        });
+
+        // 新規登録された行にだけ採番された「受注明細番号」をセット
+        newIdMappings.forEach(function(item) {
+          updatedTable[item.rowIndex].value['受注明細番号'] = {
+            value: String(item.newDetailId)
+          };
+        });
+
+        // ★ 親アプリ（受注管理）のレコードをPUT更新
+        await kintone.api(
+          kintone.api.url('/k/v1/record.json', true),
+          'PUT',
+          {
+            app: kintone.app.getId(),
+            id: kintone.app.record.getId(),
+            record: { 'Table': { value: updatedTable } }
+          }
+        );
+
+        alert('テーブル展開（新規登録＆更新）が正常に完了しました。');
+        location.reload();
+      } catch (err) {
+        console.error('処理エラー:', err);
+        alert('エラーが発生しました: ' + (err.message || JSON.stringify(err)));
+      }
+    });
+
+    headerMenuEl.appendChild(btn);
+    return event;
+  });
+})();
+```
+
+---
+
+## 7. コードの解説
+
+1. **`受注明細番号` による自動判定**
+   - サブテーブル各行の `受注明細番号` の有無を判定基準にし、すでに明細アプリに存在する行は `PUT` (更新)、まだ展開されていない新規行は `POST` (新規登録) へ振り分けます。
+2. **`await Promise.all(...)` による並行処理の同期待機**
+   - `POST` リクエストと `PUT` リクエストを配列化し、`await Promise.all(...)` で両方の非同期処理が完了するまで一時停止（同期待機）します。
+3. **新規明細 ID の親テーブル書き戻し (`await`)**
+   - 新しく `POST` された明細レコードの ID (`resp.ids`) を親アプリの該当サブテーブル行の `受注明細番号` フィールドに反映し、親レコード更新を `await` 実行してから画面を更新します。

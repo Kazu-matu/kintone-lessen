@@ -1,0 +1,4 @@
+company,name,post_code,tel,fax,address,rank,mail_address,note
+朝日商事,品川 吉織,1660001,090-0000-0000,050-0000-0000,東京都杉並区1-1,A,shinagawa_yoshiki@example.com,ご挨拶を実施
+赤松機械,中田 助勝,1036028,080-0000-0000,040-0000-0000,東京都中央区1-1,B,nakata_sukekatsu@example.com,新規のお客様
+青木建設,友岡 春樹,3300041,070-0000-0000,030-0000-0000,埼玉県浦和市1-1,C,tomooka_haruki@example.com,先月お問い合わせをいただいた
