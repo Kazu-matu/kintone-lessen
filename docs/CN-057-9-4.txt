@@ -53,7 +53,22 @@
 
 ---
 
-## 5. 導入・操作手順ガイド
+## 5. kintone 開発専門家による設計・実装アドバイス
+
+実務で堅牢なカスタマイズビューを実装する際、専門家が必ず配慮する設計ポイントです。
+
+- **ゼロ除算 (Division by Zero) の防止:**  
+  予算が未入力または `0` のレコードが存在した場合に除算を行うと、JavaScript上では `Infinity` や `NaN` が返り、UI表示が壊れる原因になります。必ず `if (budget > 0)` のようなガード文を入れ、`0`除算を未然に防ぐ実装が必要です。
+- **クロスサイトスクリプティング (XSS) 対策の徹底:**  
+  動的にHTML文字列を構築して `innerHTML` へ流し込む際、ユーザーが自由に入力できる「拠点」などのテキストフィールド値をエスケープせずに直接結合すると、任意のスクリプトが実行されるXSS脆弱性が生じます。実務では必ず `escapeHtml()` のようなヘルパー関数を通す必要があります。
+- **データ件数とページネーションの連動:**  
+  `event.records` には、レコード一覧画面の「現在のページに表示されている件数（通常20件〜100件）」のみが入ります。ページを切り替えたり一覧を絞り込んだりするたびに `app.record.index.show` イベントが再発火し、ビューが自動的に最新データで再レンダリングされる仕組みを理解して設計してください。
+- **使い勝手 (UX) の向上:**  
+  数値を画面上にプレーンテキストで表示するのではなく、金額に `toLocaleString()` を適用して3桁カンマ区切りにし、末尾に「円」や「%」などの単位を明記することで、一目で状況が判断できる高品質なビジネス向け画面になります。
+
+---
+
+## 6. 導入・操作手順ガイド
 
 本カスタマイズプログラムを「予実管理」アプリに適用し、動作確認するための手順です。
 
@@ -69,8 +84,8 @@
 6. 一覧の設定を保存します。
 
 ### ステップ 2: CSS (CDN) と JavaScript ファイルの設定
-1. 下記の「6. 模範解答コード」をコピーし、`budget_achievement.js` (UTF-8 BOMなし) として保存します。
-2. アプリ設定の **「JavaScript / CSSによるカスタマイズ」** を開きます。
+1. 下記の「7. 模範解答コード」をコピーし、`budget_achievement.js` (UTF-8 BOMなし) として保存します。
+2. アプリ設定 of **「JavaScript / CSSによるカスタマイズ」** を開きます。
 3. **「PC用CSSファイル」** の **「URLを指定して追加」** を選択し、以下のURLを入力して追加します：
    `https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css`
 4. **「PC用JavaScriptファイル」** の **「ファイルを選んで追加」** を選択し、作成した `budget_achievement.js` をアップロードします。
@@ -83,7 +98,7 @@
 
 ---
 
-## 6. 模範解答コード (JavaScript)
+## 7. 模範解答コード (JavaScript / async/await 対応・防御的設計版)
 
 ```javascript
 /**
@@ -101,19 +116,19 @@
       return event;
     }
 
-    // 「予算達成率」一覧の場合のみ実行 (ビュー名または表示確認)
+    // 「予算達成率」一覧の場合のみ実行 (ビュー名によるフィルタ)
     if (event.viewName !== '予算達成率') {
       return event;
     }
 
     const records = event.records;
     if (!records || records.length === 0) {
-      container.innerHTML = '<p style="padding: 20px;">表示対象の予実レコードがありません。</p>';
+      container.innerHTML = '<p class="flow-text" style="padding: 20px;">表示対象 of 予実レコードがありません。</p>';
       return event;
     }
 
     // Materialize の striped テーブルクラスを適用
-    let html = '<table class="striped responsive-table">';
+    let html = '<table class="striped responsive-table highlight">';
     html += '<thead>';
     html += '<tr>';
     html += '<th>予算No</th>';
@@ -138,14 +153,16 @@
       // [差異] = [実績] - [予算]
       const diff = actual - budget;
 
-      // [達成率] = ([実績] / [予算]) * 100 (※ 小数点第3位を切り捨て)
+      // [達成率] = ([実績] / [予算]) * 100
+      // 予算が0または空欄の場合のゼロ除算 (Division by Zero) を防止
       let ratePercent = 0;
       if (budget > 0) {
         const rawRate = (actual / budget) * 100;
-        ratePercent = Math.floor(rawRate * 100) / 100; // 小数点第3位切り捨て
+        // 小数点第3位以下を切り捨て (Math.floor を利用)
+        ratePercent = Math.floor(rawRate * 100) / 100;
       }
 
-      // 要件② 達成率が100%未満の場合、Materialize Colorクラスを付与
+      // 達成率が100%未満の場合、警告用 Materialize カラークラスを付与
       // 背景色: red lighten-5 / 文字色: red-text text-accent-4
       let rateClass = '';
       if (ratePercent < 100) {
@@ -166,13 +183,13 @@
     html += '</tbody>';
     html += '</table>';
 
-    // 生成したHTMLをカスタマイズ表示領域へ設定
+    // 生成したテーブルHTMLを表示領域へ設定
     container.innerHTML = html;
 
     return event;
   });
 
-  // XSS対策用HTMLエスケープ関数
+  // クロスサイトスクリプティング (XSS) 防止用 HTML エスケープ関数
   function escapeHtml(str) {
     if (!str) return '';
     return String(str)
@@ -187,13 +204,13 @@
 
 ---
 
-## 7. コードの解説
+## 8. コードの解説
 
-1. **`document.getElementById('customize')` と `event.viewName` の判定**
-   - 設定したカスタマイズビュー `<div id="customize"></div>` の存在と、一覧名が「予算達成率」であることを確認し、目的の画面でのみ描画ロジックを動かします。
-2. **数値計算と小数点処理 (`Math.floor`)**
-   - 差異を `実績 - 予算` で計算し、達成率は `(実績 / 予算) * 100` で求めます。
-   - 「小数点第3位を切り捨て」の仕様を満たすため、`Math.floor(rawRate * 100) / 100` で計算しています。
-3. **Materialize CSS スタイルクラスの動的付与**
-   - テーブル全体に `class="striped responsive-table"` を付与してストライプ状の表にします。
-   - 達成率が 100% 未満の場合に限り、該当の `<td>` セルに `red lighten-5 red-text text-accent-4` クラスを動的に付与し、ハイライト表示を実現します。
+1. **`escapeHtml` によるセキュリティの確保**
+   - 文字列型のユーザー入力フィールド（予算No、年度、拠点）の値を表示する際、HTML特殊文字を実体参照に置換してレンダリングすることで、悪意あるコードの混入を防ぐ安全な設計にしています。
+2. **`Math.floor(rawRate * 100) / 100` による正確な切り捨て処理**
+   - 「小数点第3位以下を切り捨て」に対応するため、達成率を100倍した値で `Math.floor()` を実行した後に100で割ることで、数学的に正確な切り捨て計算を行っています。
+3. **`budget > 0` によるゼロ除算ガード**
+   - 新規登録直後などで予算が未入力（あるいは `0`）になっているレコードが含まれていても、プログラムが `NaN` や `Infinity` を出力してクラッシュしないよう、ガードブロックを設けています。
+4. **Materialize CSS スタイルの適用**
+   - `striped highlight` クラスでホバー効果としま模様の表にし、達成率100%未満の行（`ratePercent < 100`）のみ `red lighten-5 red-text text-accent-4` をセルへ動的に追加しています。
