@@ -1,16 +1,73 @@
-# budget_achievement.js 詳細仕様書
+# budget_achievement.js 詳細仕様書（SOLID原則リファクタリング版）
 
 本書は、予実管理アプリにおけるカスタマイズビュー「予算達成率」を表示するためのJavaScriptプログラム（`budget_achievement.js`）の詳細仕様について定義します。
+本プログラムは、**SOLID原則**に基づき、保守性・可読性・拡張性を重視した設計で実装されています。
 
 ---
 
-## 1. プログラム概要
-本プログラムは、kintoneアプリ「15 【入社前研修】予実管理」の一覧画面において、動的にHTMLテーブルを生成してカスタマイズビュー内に描画します。
-取得したレコードの「予算」と「実績」を基に、「差異」と「達成率（切り捨て計算）」をJavaScript側で計算し、CSSフレームワーク（Materialize）を適用して視覚的に強調表示します。
+## 1. アーキテクチャ設計 (SOLID原則の適用)
+本プログラムは、機能ごとの役割（責務）を分離し、将来的な表示スタイルの変更やビジネスルールの追加に柔軟に対応できるように設計されています。
 
+### 1.1. クラス構成と責務
 
-### 1.1. 処理フロー
-以下は、プログラムのイベント発生から画面描画までの処理フロー図です。
+| クラス名 | 責務 (SRP) | SOLID原則に関連する設計方針 |
+| :--- | :--- | :--- |
+| **`HtmlUtil`** | HTML文字列のエスケープ処理（セキュリティ） | 共通ユーティリティとしての単一責務。 |
+| **`BudgetRecordModel`** | kintoneの生データからドメインモデルへの変換、差異・達成率の計算（ビジネスロジック） | UI表示や外部フレームワークに依存せず、計算規則のみをカプセル化する。 |
+| **`BudgetWarningRule`** | 警告を表示するしきい値や、警告用のスタイル定義（判定ルール） | **Open/Closed（開放閉鎖）の原則:** 警告ルール（100%未満等）や色を拡張・変更する際、他のクラスに影響を与えない。 |
+| **`MaterializeTableViewRenderer`** | モデルデータを受け取り、Materialize CSSを適用したHTMLテーブルを構築する（描画処理） | **Liskov Substitution（リスコフの置換）の原則:** 抽象化されたレンダラー定義に従い、他のCSSフレームワーク用のレンダラーと安全に置換可能。 |
+| **`BudgetAchievementApp`** | kintoneのライフサイクルイベント監視、ModelとViewの仲介（コントローラー） | **Dependency Inversion（依存性逆転）の原則:** 具体的なCSS定義に依存せず、抽象化された `renderer` オブジェクトにのみ依存する。 |
+
+---
+
+### 1.2. クラス図
+以下は、各クラスの関係性とメソッド定義を表したクラス図です。
+
+```mermaid
+classDiagram
+    class HtmlUtil {
+        +escape(str: String) String$
+    }
+
+    class BudgetRecordModel {
+        +budgetNo: String
+        +year: String
+        +branch: String
+        +budget: Number
+        +actual: Number
+        +diff: Number
+        +achievementRate: Number
+    }
+
+    class BudgetWarningRule {
+        +threshold: Number
+        +isWarning(recordModel: BudgetRecordModel) Boolean
+        +getWarningClass() String
+    }
+
+    class MaterializeTableViewRenderer {
+        -warningRule: BudgetWarningRule
+        -_getRateCellClass(recordModel: BudgetRecordModel) String
+        +render(recordModels: Array~BudgetRecordModel~) String
+    }
+
+    class BudgetAchievementApp {
+        +viewName: String
+        -renderer: MaterializeTableViewRenderer
+        +init() void
+    }
+
+    BudgetAchievementApp --> MaterializeTableViewRenderer : 依存関係を注入 (DIP)
+    MaterializeTableViewRenderer --> BudgetWarningRule : 警告ルールの判定を委譲 (Strategy)
+    MaterializeTableViewRenderer ..> HtmlUtil : 文字列をエスケープ
+    MaterializeTableViewRenderer ..> BudgetRecordModel : レンダリング処理
+    BudgetWarningRule ..> BudgetRecordModel : 達成率から警告判定
+```
+
+---
+
+### 1.3. 処理フロー
+以下は、プログラムのイベント発生からデータ処理、および画面描画が行われるまでの詳細フロー図です。
 
 ```mermaid
 flowchart TD
@@ -24,24 +81,19 @@ flowchart TD
     CheckRecords -- No --> ShowNoData["コンテナに「表示対象の予実レコードがありません」を表示"]
     ShowNoData --> Exit
     
-    CheckRecords -- Yes --> InitTable["HTMLテーブルのヘッダーを作成"]
+    CheckRecords -- Yes --> ConvertModels["kintone生レコードを BudgetRecordModel に変換<br>（差異・達成率の自動計算）"]
+    ConvertModels --> CallRenderer["MaterializeTableViewRenderer.render() を呼び出し"]
+    
+    CallRenderer --> InitTable["HTMLテーブルのヘッダーを作成"]
     InitTable --> LoopStart["レコードごとのループ処理"]
     
-    LoopStart --> GetValues["フィールド値の取得 (デフォルト値適用)"]
-    GetValues --> Escape["文字列を XSS エスケープ"]
-    Escape --> CalcDiff["差異を計算 (実績 - 予算)"]
+    LoopStart --> Escape["HtmlUtil.escape() で文字列をエスケープ"]
+    Escape --> WarningCheck{"BudgetWarningRule.isWarning() で警告判定"}
     
-    CalcDiff --> CheckBudget{"予算 > 0 か？"}
-    CheckBudget -- Yes --> CalcRate["達成率を計算 (切り捨て処理)"]
-    CheckBudget -- No --> SetRateZero["達成率を 0 に設定"]
+    WarningCheck -- Yes --> ApplyWarningClass["警告セル用 CSS クラスを設定"]
+    WarningCheck -- No --> SetDefaultClass["クラス指定なし"]
     
-    CalcRate --> CheckRateColor{"達成率 < 100% か？"}
-    SetRateZero --> CheckRateColor
-    
-    CheckRateColor -- Yes --> SetWarningClass["赤色ハイライト用の CSS クラスを設定"]
-    CheckRateColor -- No --> SetDefaultClass["クラス指定なし"]
-    
-    SetWarningClass --> BuildRow["行 (tr) の HTML を構築・結合"]
+    ApplyWarningClass --> BuildRow["行 (tr) の HTML を構築・結合"]
     SetDefaultClass --> BuildRow
     
     BuildRow --> LoopNext{"次のレコードがあるか？"}
@@ -74,12 +126,10 @@ flowchart TD
 
 ---
 
-## 3. データ処理・計算仕様
-
-各レコード（`records`）をループ処理し、以下のルールに従って計算・整形を行います。
+## 3. データ処理・計算仕様 (Model: `BudgetRecordModel`)
 
 ### 3.1. 取得フィールド
-各レコードの以下のフィールド値を取得します。値が存在しない場合のデフォルト値も規定します。
+各レコードから以下のフィールド値を取得します。値が存在しない場合のデフォルト値も規定します。
 
 | フィールド名 | フィールドコード | 内部データ型 | 値がない場合のデフォルト値 |
 | :--- | :--- | :--- | :--- |
@@ -98,7 +148,7 @@ flowchart TD
   - 末尾に ` 円` を付与する。（例: `+150,000 円`, `-50,000 円`）
 
 ### 3.3. 達成率の算出とゼロ除算防止
-予算に対する実績 of 割合（%）を算出します。
+予算に対する実績の割合（%）を算出します。
 - **計算式:** `達成率 (%) = (実績 / 予算) * 100`
 - **ゼロ除算 (Division by Zero) 防止ガード:**
   - 予算が `0` または空欄（デフォルト値 `0`）の場合は計算を行わず、達成率を **`0.00 %`** とします。
@@ -108,7 +158,7 @@ flowchart TD
 
 ---
 
-## 4. 表示・スタイリング仕様 (Materialize CSS)
+## 4. 表示・スタイリング仕様 (View/Renderer: `MaterializeTableViewRenderer`)
 
 ### 4.1. Materialize CSS とは
 Materialize CSS は、Googleが提唱する**「マテリアルデザイン（Material Design）」**のガイドラインに沿って作られたモダンなフロントエンドCSSフレームワークです。
@@ -131,7 +181,7 @@ Materialize CSS は、Googleが提唱する**「マテリアルデザイン（Ma
 6. **差異**
 7. **達成率**
 
-### 4.4. 達成率100%未満のハイライト
+### 4.4. 達成率100%未満のハイライト (Strategy: `BudgetWarningRule`)
 達成率が **100%未満** のレコードに対しては、達成率を表示するセル（`<td>`）のみスタイルを以下のように変更します。
 
 | 項目 | 適用する Materialize クラス | 効果 |
@@ -142,7 +192,7 @@ Materialize CSS は、Googleが提唱する**「マテリアルデザイン（Ma
 
 ---
 
-## 5. セキュリティ設計 (XSS対策)
+## 5. セキュリティ設計 (Utility: `HtmlUtil`)
 
 ユーザーが任意に入力可能な文字列型フィールド（`予算No`, `年度`, `拠点`）をHTMLとして画面に出力する際、悪意あるスクリプトの実行（クロスサイトスクリプティング: XSS）を防ぐため、専用のエスケープ関数（`escapeHtml`）を通してHTMLエンティティに変換します。
 

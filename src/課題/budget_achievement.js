@@ -1,99 +1,144 @@
 /**
- * 課題名: CN-057-9-4 予実管理 カスタマイズビュー＆MaterializeCSS表示
+ * 課題名: CN-057-9-4 予実管理 カスタマイズビュー (SOLID原則適用リファクタリング版)
  * 対象アプリ: 【入社前研修】予実管理 (AppID: 15)
+ * 版数: 1.1.0
+ * 作成日: 2026-08-02
+ * 更新日: 2026-08-02
+ * 作成者: K.Matsushima
+ * 修正者: K.Matsushima
+ * ツール: Antigravity (Gemini)
  */
 (function() {
   'use strict';
 
-  // レコード一覧画面表示イベント
-  kintone.events.on('app.record.index.show', function(event) {
-    // カスタマイズビューの要素を取得
-    const container = document.getElementById('customize');
-    if (!container) {
-      return event;
+  // 1. Utility: セキュリティ対策（XSS対策の責務）
+  class HtmlUtil {
+    static escape(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }
-
-    // 「予算達成率」一覧の場合のみ実行 (ビュー名によるフィルタ)
-    if (event.viewName !== '予算達成率') {
-      return event;
-    }
-
-    const records = event.records;
-    if (!records || records.length === 0) {
-      container.innerHTML = '<p class="flow-text" style="padding: 20px;">表示対象 of 予実レコードがありません。</p>';
-      return event;
-    }
-
-    // Materialize の striped テーブルクラスを適用
-    let html = '<table class="striped responsive-table highlight">';
-    html += '<thead>';
-    html += '<tr>';
-    html += '<th>予算No</th>';
-    html += '<th>年度</th>';
-    html += '<th>拠点</th>';
-    html += '<th>予算</th>';
-    html += '<th>実績</th>';
-    html += '<th>差異</th>';
-    html += '<th>達成率</th>';
-    html += '</tr>';
-    html += '</thead>';
-    html += '<tbody>';
-
-    // 各レコードをループ処理
-    records.forEach(function(rec) {
-      const budgetNo = rec.予算No ? rec.予算No.value : '';
-      const year = rec.年度 ? rec.年度.value : '';
-      const branch = rec.拠点 ? rec.拠点.value : '';
-      const budget = rec.予算 ? Number(rec.予算.value) : 0;
-      const actual = rec.実績 ? Number(rec.実績.value) : 0;
-
-      // [差異] = [実績] - [予算]
-      const diff = actual - budget;
-
-      // [達成率] = ([実績] / [予算]) * 100
-      // 予算が0または空欄の場合のゼロ除算 (Division by Zero) を防止
-      let ratePercent = 0;
-      if (budget > 0) {
-        const rawRate = (actual / budget) * 100;
-        // 小数点第3位以下を切り捨て (Math.floor を利用)
-        ratePercent = Math.floor(rawRate * 100) / 100;
-      }
-
-      // 達成率が100%未満の場合、警告用 Materialize カラークラスを付与
-      // 背景色: red lighten-5 / 文字色: red-text text-accent-4
-      let rateClass = '';
-      if (ratePercent < 100) {
-        rateClass = 'red lighten-5 red-text text-accent-4';
-      }
-
-      html += '<tr>';
-      html += '<td>' + escapeHtml(budgetNo) + '</td>';
-      html += '<td>' + escapeHtml(year) + '</td>';
-      html += '<td>' + escapeHtml(branch) + '</td>';
-      html += '<td>' + budget.toLocaleString() + ' 円</td>';
-      html += '<td>' + actual.toLocaleString() + ' 円</td>';
-      html += '<td>' + (diff >= 0 ? '+' : '') + diff.toLocaleString() + ' 円</td>';
-      html += '<td class="' + rateClass + '" style="font-weight: bold;">' + ratePercent.toFixed(2) + ' %</td>';
-      html += '</tr>';
-    });
-
-    html += '</tbody>';
-    html += '</table>';
-
-    // 生成したテーブルHTMLを表示領域へ設定
-    container.innerHTML = html;
-
-    return event;
-  });
-
-  // クロスサイトスクリプティング (XSS) 防止用 HTML エスケープ関数
-  function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
   }
+
+  // 2. Model: 1レコード分のデータ保持とビジネスロジック（計算の責務）
+  class BudgetRecordModel {
+    constructor(kintoneRecord) {
+      this.budgetNo = kintoneRecord.予算No ? kintoneRecord.予算No.value : '';
+      this.year = kintoneRecord.年度 ? kintoneRecord.年度.value : '';
+      this.branch = kintoneRecord.拠点 ? kintoneRecord.拠点.value : '';
+      this.budget = kintoneRecord.予算 ? Number(kintoneRecord.予算.value) : 0;
+      this.actual = kintoneRecord.実績 ? Number(kintoneRecord.実績.value) : 0;
+    }
+
+    // [差異] の算出
+    get diff() {
+      return this.actual - this.budget;
+    }
+
+    // [達成率] の算出（ゼロ除算防止・小数点第3位以下切り捨て）
+    get achievementRate() {
+      if (this.budget <= 0) {
+        return 0;
+      }
+      const rawRate = (this.actual / this.budget) * 100;
+      return Math.floor(rawRate * 100) / 100;
+    }
+  }
+
+  // 3. Strategy: 警告条件の判定ルール（拡張性の向上）
+  class BudgetWarningRule {
+    constructor(thresholdPercent = 100) {
+      this.threshold = thresholdPercent;
+    }
+
+    // 警告対象（しきい値未満）かどうか判定
+    isWarning(recordModel) {
+      return recordModel.achievementRate < this.threshold;
+    }
+
+    // 警告時に付与する CSS クラス名
+    getWarningClass() {
+      return 'red lighten-5 red-text text-accent-4';
+    }
+  }
+
+  // 4. View/Renderer: HTMLテーブルの構築（描画の責務）
+  class MaterializeTableViewRenderer {
+    constructor(warningRule) {
+      this.warningRule = warningRule;
+    }
+
+    _getRateCellClass(recordModel) {
+      return this.warningRule.isWarning(recordModel) 
+        ? this.warningRule.getWarningClass() 
+        : '';
+    }
+
+    render(recordModels) {
+      let html = '<table class="striped responsive-table highlight">';
+      html += '<thead><tr>';
+      html += '<th>予算No</th><th>年度</th><th>拠点</th><th>予算</th><th>実績</th><th>差異</th><th>達成率</th>';
+      html += '</tr></thead><tbody>';
+
+      recordModels.forEach(rec => {
+        const rateClass = this._getRateCellClass(rec);
+        const diffSign = rec.diff >= 0 ? '+' : '';
+
+        html += '<tr>';
+        html += `<td>${HtmlUtil.escape(rec.budgetNo)}</td>`;
+        html += `<td>${HtmlUtil.escape(rec.year)}</td>`;
+        html += `<td>${HtmlUtil.escape(rec.branch)}</td>`;
+        html += `<td>${rec.budget.toLocaleString()} 円</td>`;
+        html += `<td>${rec.actual.toLocaleString()} 円</td>`;
+        html += `<td>${diffSign}${rec.diff.toLocaleString()} 円</td>`;
+        html += `<td class="${rateClass}" style="font-weight: bold;">${rec.achievementRate.toFixed(2)} %</td>`;
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+      return html;
+    }
+  }
+
+  // 5. Controller: アプリ全体の処理コーディネート（制御の責務）
+  class BudgetAchievementApp {
+    constructor(viewName, renderer) {
+      this.viewName = viewName;
+      this.renderer = renderer;
+    }
+
+    init() {
+      kintone.events.on('app.record.index.show', (event) => {
+        const container = document.getElementById('customize');
+        if (!container || event.viewName !== this.viewName) {
+          return event;
+        }
+
+        const records = event.records;
+        if (!records || records.length === 0) {
+          container.innerHTML = '<p class="flow-text" style="padding: 20px;">表示対象の予実レコードがありません。</p>';
+          return event;
+        }
+
+        // kintoneの生レコード配列を、扱いやすいModelオブジェクト配列に変換
+        const recordModels = records.map(rec => new BudgetRecordModel(rec));
+
+        // HTMLレンダリングと描画適用
+        container.innerHTML = this.renderer.render(recordModels);
+
+        return event;
+      });
+    }
+  }
+
+  // --- 依存関係の注入（DI）とアプリケーション起動 ---
+  const warningRule = new BudgetWarningRule(100); // 100%未満を警告対象にするルール
+  const renderer = new MaterializeTableViewRenderer(warningRule);
+  const app = new BudgetAchievementApp('予算達成率', renderer);
+  app.init();
+
 })();
