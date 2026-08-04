@@ -1,8 +1,8 @@
 /**
  * 課題名: CN-059-9-3 明細登録 ＆ 更新分岐処理（async/await + Promise.all版）
- * 版数: 1.0.0
+ * 版数: 1.0.4
  * 作成日: 2026-08-02
- * 更新日: 2026-08-02
+ * 更新日: 2026-08-05
  * 作成者: Antigravity
  * 修正者: Antigravity
  * ツール: Antigravity
@@ -16,7 +16,7 @@
   kintone.events.on('app.record.detail.show', function(event) {
     const record = event.record;
 
-    const headerMenuEl = kintone.app.getHeaderMenuSpaceElement();
+    const headerMenuEl = kintone.app.record.getHeaderMenuSpaceElement();
     if (!headerMenuEl || document.getElementById('btn_table_expand_3')) {
       return event;
     }
@@ -28,7 +28,7 @@
     btn.style.margin = '10px';
 
     btn.addEventListener('click', async function() {
-      const subtable = record.Table ? record.Table.value : [];
+      const subtable = record.受注明細Table ? record.受注明細Table.value : [];
       if (!subtable || subtable.length === 0) {
         alert('展開対象の明細行が存在しません。');
         return;
@@ -44,7 +44,10 @@
           '受注番号': { value: record.受注管理No.value },
           '受注日': { value: record.受注日.value },
           '顧客コード': { value: record.顧客コード.value },
-          '商品コード': { value: row.value.商品コード.value },
+          '商品コード_0': { value: row.value.商品コード.value },
+          'カテゴリ': { value: row.value.カテゴリ.value },
+          '商品名': { value: row.value.商品名.value },
+          '単価': { value: row.value.販売単価.value },
           '数量': { value: row.value.数量.value },
           '小計': { value: row.value.小計.value }
         };
@@ -125,7 +128,7 @@
           {
             app: kintone.app.getId(),
             id: kintone.app.record.getId(),
-            record: { 'Table': { value: updatedTable } }
+            record: { '受注明細Table': { value: updatedTable } }
           }
         );
 
