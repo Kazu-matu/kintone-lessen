@@ -1,0 +1,17 @@
+{
+  "name": "kintone-table-expand-e2e",
+  "version": "1.0.0",
+  "description": "E2E testing for kintone table expansion customization",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0",
+    "dotenv": "^16.4.5"
+  },
+  "author": "Antigravity",
+  "license": "ISC"
+}
