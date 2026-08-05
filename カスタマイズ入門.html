@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>カスタマイズ入門.sptpl 解析レポート</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#faf9f6; --surface:#ffffff; --ink:#1f2420; --ink-soft:#565f57;
+  --line:#dde2dc; --accent:#2e6b52; --accent-soft:#e4efe8;
+  --mono-bg:#f1f3ef; --tag-bg:#eef1ec;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#15181a; --surface:#1c2022; --ink:#e9ece8; --ink-soft:#9aa39c;
+    --line:#33393a; --accent:#6fbf9a; --accent-soft:#1f2e27;
+    --mono-bg:#202523; --tag-bg:#232928;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15181a; --surface:#1c2022; --ink:#e9ece8; --ink-soft:#9aa39c;
+  --line:#33393a; --accent:#6fbf9a; --accent-soft:#1f2e27;
+  --mono-bg:#202523; --tag-bg:#232928;
+}
+:root[data-theme="light"]{
+  --bg:#faf9f6; --surface:#ffffff; --ink:#1f2420; --ink-soft:#565f57;
+  --line:#dde2dc; --accent:#2e6b52; --accent-soft:#e4efe8;
+  --mono-bg:#f1f3ef; --tag-bg:#eef1ec;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Sans","Yu Gothic",-apple-system,"Segoe UI",sans-serif;
+  line-height:1.7; padding:0 0 6rem;
+}
+.wrap{max-width:920px; margin:0 auto; padding:0 1.75rem;}
+header.hero{border-bottom:1px solid var(--line); padding:3rem 0 2rem; margin-bottom:2.5rem;}
+.eyebrow{font-size:.78rem; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); font-weight:600; margin:0 0 .6rem;}
+h1{font-size:clamp(1.6rem,3.4vw,2.3rem); margin:0 0 .5rem; font-weight:700; text-wrap:balance; letter-spacing:-.01em;}
+.sub{color:var(--ink-soft); font-size:.98rem; max-width:60ch;}
+.meta-row{display:flex; gap:1.5rem; flex-wrap:wrap; margin-top:1.4rem; font-size:.85rem; color:var(--ink-soft);}
+.meta-row b{color:var(--ink); font-weight:600;}
+section{margin:2.6rem 0;}
+h2{font-size:1.25rem; margin:0 0 1rem; padding-bottom:.5rem; border-bottom:2px solid var(--accent-soft); font-weight:700;}
+h3{font-size:1.02rem; margin:1.6rem 0 .6rem; font-weight:700;}
+p{color:var(--ink); max-width:70ch;}
+.note{color:var(--ink-soft); font-size:.92rem;}
+.diagram-caption{font-size:.82rem; color:var(--ink-soft); margin:.5rem 0 0;}
+.app-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:.9rem; margin:1rem 0;}
+.app-card{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:1rem 1.1rem;}
+.app-card .name{font-weight:700; font-size:1rem; margin-bottom:.3rem;}
+.app-card .desc{font-size:.85rem; color:var(--ink-soft); line-height:1.55;}
+.app-card .tags{display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.6rem;}
+.tag{font-size:.72rem; background:var(--tag-bg); color:var(--ink-soft); padding:.15rem .5rem; border-radius:4px; font-variant-numeric:tabular-nums;}
+.mermaid-wrap{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:1.2rem; overflow-x:auto;}
+table{border-collapse:collapse; width:100%; font-size:.87rem;}
+th,td{text-align:left; padding:.45rem .7rem; border-bottom:1px solid var(--line); vertical-align:top;}
+th{font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:600; border-bottom:2px solid var(--line);}
+td.type{font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.8rem; color:var(--accent);}
+tr:last-child td{border-bottom:none;}
+.table-scroll{overflow-x:auto; border:1px solid var(--line); border-radius:8px; background:var(--surface);}
+.table-scroll table{min-width:520px;}
+.app-block{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:1.4rem 1.5rem; margin-bottom:1.4rem;}
+.app-block-head{display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:.5rem; margin-bottom:.3rem;}
+.app-block-head h3{margin:0; font-size:1.08rem;}
+.uuid{font-family:ui-monospace,monospace; font-size:.72rem; color:var(--ink-soft);}
+.app-desc{font-size:.88rem; color:var(--ink-soft); margin:.4rem 0 1rem;}
+.flow-steps{list-style:none; margin:0; padding:0; counter-reset:step;}
+.flow-steps li{counter-increment:step; position:relative; padding:.5rem 0 .5rem 2.2rem; border-bottom:1px solid var(--line); font-size:.92rem;}
+.flow-steps li:last-child{border-bottom:none;}
+.flow-steps li::before{content:counter(step); position:absolute; left:0; top:.5rem; width:1.5rem; height:1.5rem; border-radius:50%; background:var(--accent-soft); color:var(--accent); font-size:.75rem; font-weight:700; display:flex; align-items:center; justify-content:center;}
+.flow-steps b{color:var(--ink);}
+.flow-steps .arrow{color:var(--accent); font-weight:600;}
+.callout{background:var(--accent-soft); border-left:3px solid var(--accent); padding:.9rem 1.1rem; border-radius:0 6px 6px 0; font-size:.88rem;}
+footer{margin-top:3rem; padding-top:1.5rem; border-top:1px solid var(--line); font-size:.8rem; color:var(--ink-soft);}
+pre.mermaid{background:transparent; margin:0;}
+.js-block{background:var(--mono-bg); border-radius:6px; padding:.7rem .9rem; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.78rem; overflow-x:auto; white-space:pre;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow">kintone スペーステンプレート解析</p>
+  <h1>カスタマイズ入門.sptpl</h1>
+  <p class="sub">ZIPアーカイブ形式のkintoneスペーステンプレート。内包する <code>space/template.json</code> を解析し、アプリ構成・フィールド定義・アプリ間連携・カスタマイズJSを抽出した。</p>
+  <div class="meta-row">
+    <span><b>7</b> アプリ</span>
+    <span><b>6</b> アプリアクション（自動転記）</span>
+    <span><b>3</b> ファイルにJSカスタマイズ</span>
+    <span><b>1</b> プラグイン共通適用</span>
+  </div>
+</header>
+
+<section>
+  <h2>1. ファイル形式</h2>
+  <p><code>.sptpl</code> は実体がZIPアーカイブで、展開すると以下の構造になっている。</p>
+  <div class="table-scroll">
+    <table>
+      <tr><th>パス</th><th>内容</th></tr>
+      <tr><td><code>space/template.json</code></td><td>スペース定義本体。全アプリのフィールド・レイアウト・ビュー・レポート・アプリアクションをJSONで保持</td></tr>
+      <tr><td><code>space/signature</code></td><td>テンプレートの署名ファイル</td></tr>
+      <tr><td><code>space/{UUID}</code></td><td>アプリアイコン画像・カスタマイズJSファイルの実体（UUID名で格納、実ファイル名は template.json 側で対応付け）</td></tr>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>2. アプリ一覧</h2>
+  <div class="app-grid">
+    <div class="app-card"><div class="name">活動履歴</div><div class="desc">案件・顧客に紐づく対応履歴（電話/メール/商談等）を記録</div><div class="tags"><span class="tag">12 fields</span><span class="tag">JS 1</span></div></div>
+    <div class="app-card"><div class="name">顧客管理</div><div class="desc">取引先企業情報。担当者・案件・活動履歴を集約表示</div><div class="tags"><span class="tag">15 fields</span><span class="tag">JS 2</span></div></div>
+    <div class="app-card"><div class="name">案件管理</div><div class="desc">商談案件の進捗・売上見込み・確度を管理</div><div class="tags"><span class="tag">17 fields</span></div></div>
+    <div class="app-card"><div class="name">担当者管理</div><div class="desc">取引先企業に紐づく担当者（個人）情報</div><div class="tags"><span class="tag">17 fields</span></div></div>
+    <div class="app-card"><div class="name">見積書</div><div class="desc">商品リストと連携して見積書を作成</div><div class="tags"><span class="tag">6 fields</span></div></div>
+    <div class="app-card"><div class="name">商品リスト</div><div class="desc">型番・商品名・価格などのマスタ</div><div class="tags"><span class="tag">6 fields</span></div></div>
+    <div class="app-card"><div class="name">旅費精算申請</div><div class="desc">出張旅費・経費の申請（社内業務系、独立系統）</div><div class="tags"><span class="tag">15 fields</span></div></div>
+  </div>
+
+  <div class="mermaid-wrap">
+<pre class="mermaid">
+mindmap
+  root((カスタマイズ入門<br/>スペース))
+    CRM系（相互連携）
+      顧客管理
+      担当者管理
+      案件管理
+      活動履歴
+    見積系（一方向連携）
+      商品リスト
+      見積書
+    業務申請系（独立）
+      旅費精算申請
+</pre>
+  </div>
+  <p class="diagram-caption">アプリアクションのつながり（連結成分）で分類。旅費精算申請はどのアプリとも自動転記の関係がなく独立している。</p>
+</section>
+
+<section>
+  <h2>3. アプリ間関係（ER図）</h2>
+  <p>関連付けは (a) レコード追加時にレコード番号を引き継いで別アプリへ転記する「アプリアクション」、(b) 転記されたNoをキーに表示する「関連レコード一覧（REFERENCE_TABLE）」の二層構造。テンプレート出力ではREFERENCE_TABLE側の紐付け先アプリ設定は保持されないため、フィールド名とアプリアクションの転記関係から関係を推定している。</p>
+  <div class="mermaid-wrap">
+<pre class="mermaid">
+erDiagram
+    顧客管理 ||--o{ 担当者管理 : "顧客No.で紐付け"
+    顧客管理 ||--o{ 案件管理 : "顧客No.で紐付け"
+    顧客管理 ||--o{ 活動履歴 : "顧客No.で紐付け"
+    案件管理 ||--o{ 活動履歴 : "案件No.で紐付け"
+    活動履歴 }o--o{ 活動履歴 : "関連活動履歴（同一案件内）"
+    案件管理 }o--o{ 案件管理 : "同一顧客向け案件（同一顧客内）"
+    担当者管理 }o--o{ 担当者管理 : "同一企業担当者（同一顧客内）"
+    商品リスト ||--o{ 見積書 : "型番/商品名/単価をコピー"
+</pre>
+  </div>
+
+  <div class="mermaid-wrap" style="margin-top:1.2rem;">
+<pre class="mermaid">
+flowchart LR
+    顧客管理 -- "担当者を登録する（2項目）" --> 担当者管理
+    顧客管理 -- "案件を登録する（2項目）" --> 案件管理
+    顧客管理 -- "活動履歴を登録する（2項目）" --> 活動履歴
+    案件管理 -- "活動履歴を登録する（4項目）" --> 活動履歴
+    活動履歴 -- "活動履歴の登録（自己参照）" --> 活動履歴
+    担当者管理 -- "担当者を追加登録する（自己参照）" --> 担当者管理
+</pre>
+  </div>
+  <p class="diagram-caption">矢印の向きが転記の方向。顧客管理が起点となり担当者・案件・活動履歴へ枝分かれし、案件管理からも活動履歴へ転記される。</p>
+</section>
+
+<section>
+  <h2>4. アプリアクション（自動転記）一覧</h2>
+  <p>レコード詳細画面のボタン操作で、実行元アプリのフィールド値を対象アプリへコピーして新規レコードを作成する設定。<code>data.actions[]</code> に定義。</p>
+  <div class="table-scroll">
+    <table>
+      <tr><th>アクション名</th><th>実行元</th><th>→ 対象</th><th>転記フィールド数</th></tr>
+      <tr><td>担当者を登録する</td><td>顧客管理</td><td>担当者管理</td><td>2</td></tr>
+      <tr><td>案件を登録する</td><td>顧客管理</td><td>案件管理</td><td>2</td></tr>
+      <tr><td>活動履歴を登録する</td><td>顧客管理</td><td>活動履歴</td><td>2</td></tr>
+      <tr><td>活動履歴を登録する</td><td>案件管理</td><td>活動履歴</td><td>4</td></tr>
+      <tr><td>活動履歴の登録</td><td>活動履歴</td><td>活動履歴</td><td>4（自己参照＝関連活動履歴の追加）</td></tr>
+      <tr><td>担当者を追加登録する</td><td>担当者管理</td><td>担当者管理</td><td>2（自己参照＝関連担当者の追加）</td></tr>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>5. 業務フロー概要</h2>
+  <ol class="flow-steps">
+    <li><b>顧客管理</b>に取引先企業を登録 <span class="arrow">→</span> 会社名・都道府県・業種・請求条件（締め日/支払日）などの基本情報を保持</li>
+    <li>詳細画面から<b>「担当者を登録する」</b>で <b>担当者管理</b> に遷移 <span class="arrow">→</span> 顧客Noを引き継いだ状態で個人（姓名・連絡先・決裁権）を登録</li>
+    <li>詳細画面から<b>「案件を登録する」</b>で <b>案件管理</b> に遷移 <span class="arrow">→</span> 商談フェーズ・確度・売上見込みを管理し、パイプラインをグラフで可視化</li>
+    <li>案件詳細から<b>「活動履歴を登録する」</b>で <b>活動履歴</b> に遷移 <span class="arrow">→</span> 案件No・会社名・案件名を自動転記した状態で対応記録（電話/メール/商談等）を追加</li>
+    <li>顧客管理・案件管理の詳細画面では、関連レコード一覧（REFERENCE_TABLE）で担当者一覧・案件一覧・活動履歴一覧を横断的に確認可能</li>
+  </ol>
+
+  <div class="mermaid-wrap" style="margin-top:1.4rem;">
+<pre class="mermaid">
+sequenceDiagram
+    actor 営業担当
+    participant 顧客管理
+    participant 担当者管理
+    participant 案件管理
+    participant 活動履歴
+
+    営業担当->>顧客管理: 取引先企業を登録
+    営業担当->>顧客管理: 「担当者を登録する」を実行
+    顧客管理->>担当者管理: 顧客No./会社名を転記して新規作成
+    営業担当->>顧客管理: 「案件を登録する」を実行
+    顧客管理->>案件管理: 顧客No./会社名を転記して新規作成
+    営業担当->>案件管理: 商談フェーズ・確度・売上見込みを更新
+    営業担当->>案件管理: 「活動履歴を登録する」を実行
+    案件管理->>活動履歴: 案件No./顧客No./会社名/案件名を転記して新規作成
+    営業担当->>活動履歴: 対応種別・内容を記録
+    活動履歴-->>顧客管理: 関連レコード一覧に反映
+    活動履歴-->>案件管理: 関連レコード一覧に反映
+</pre>
+  </div>
+  <p class="diagram-caption">1件の商談が「顧客登録 → 担当者/案件登録 → 活動履歴記録」の順で処理され、各アプリの関連レコード一覧に自動反映される。</p>
+
+  <div class="callout">見積書・商品リストは別系統：商品リストのマスタデータ（型番・商品名・単価）を見積書にコピーして明細を作成する、独立した価格提示フロー。旅費精算申請はCRM系とは無関係な社内経費申請アプリ。</div>
+</section>
+
+<section>
+  <h2>6. カスタマイズJS・プラグイン</h2>
+  <div class="table-scroll">
+    <table>
+      <tr><th>アプリ</th><th>ファイル名</th><th>要約</th></tr>
+      <tr><td>活動履歴</td><td><code>j_02-02-03.js</code></td><td>レコード新規作成画面表示時、「内容」欄に入力ガイド（定型の注意書き）をあらかじめセットする</td></tr>
+      <tr><td>顧客管理</td><td><code>setGroupFieldOpen.js</code></td><td>詳細画面ではグループフィールドを開き、追加/編集画面では閉じるよう制御する</td></tr>
+      <tr><td>顧客管理</td><td><code>setGroupFildShow.js</code></td><td>上記と同一内容（コメントも同一）。設定ミスにより同じ処理が重複登録されている可能性</td></tr>
+    </table>
+  </div>
+
+  <h3>ソース抜粋</h3>
+  <div class="js-block">// j_02-02-03.js（活動履歴）
+kintone.events.on('app.record.create.show', (event) =&gt; {
+  event.record['内容'].value = '※具体的な商談内容を箇条書きで簡潔に記載してください';
+  return event;
+});</div>
+  <br>
+  <div class="js-block">// setGroupFieldOpen.js / setGroupFildShow.js（顧客管理）
+kintone.events.on('app.record.detail.show', (event) =&gt; {
+  kintone.app.record.setGroupFieldOpen('グループ', true);
+});
+kintone.events.on(['app.record.create.show', 'app.record.edit.show'], (event) =&gt; {
+  kintone.app.record.setGroupFieldOpen('グループ', false);
+});</div>
+
+  <p class="note" style="margin-top:1rem;">7アプリ全てに同一プラグイン（id: <code>fdeplpmkengkldpdlaiegpokgmaabkkb</code>）が有効化されている。見積書・商品リスト・旅費精算申請の説明文には「cybozu developer network」の公開JSサンプルで自動採番や入力チェックが追加可能との案内があるが、テンプレート自体には未組み込み。</p>
+</section>
+
+<section>
+  <h2>7. アプリ別フィールド定義</h2>
+  <p class="note">システム項目（作成者/更新者/日時/ステータス等）は割愛し、業務項目のみ記載。</p>
+
+  <div class="app-block">
+    <div class="app-block-head"><h3>活動履歴</h3><span class="uuid">57bc63cf-…</span></div>
+    <p class="app-desc">案件に紐づく活動履歴を管理。案件Noに紐づけてデータ入力することで、案件ごとの活動履歴を一画面で確認できる。</p>
+    <div class="table-scroll"><table>
+      <tr><th>ラベル</th><th>型</th><th>var</th><th>備考</th></tr>
+      <tr><td>活動履歴No.</td><td class="type">RECORD_ID</td><td>レコード番号</td><td>必須</td></tr>
+      <tr><td>対応日付</td><td class="type">DATE</td><td>対応日付</td><td></td></tr>
+      <tr><td>対応種別</td><td class="type">SINGLE_SELECT</td><td>対応種別</td><td>電話/メール/商談(初回・2回目以降)/その他/打ち合わせ</td></tr>
+      <tr><td>所属組織</td><td class="type">ORGANIZATION_SELECT</td><td>所属組織</td><td></td></tr>
+      <tr><td>対応者</td><td class="type">USER_SELECT</td><td>対応者</td><td></td></tr>
+      <tr><td>タイトル</td><td class="type">SINGLE_LINE_TEXT</td><td>タイトル</td><td></td></tr>
+      <tr><td>内容</td><td class="type">MULTIPLE_LINE_TEXT</td><td>内容</td><td></td></tr>
+      <tr><td>添付ファイル</td><td class="type">FILE</td><td>添付ファイル</td><td></td></tr>
+      <tr><td>会社名／案件名</td><td class="type">SINGLE_LINE_TEXT</td><td>会社名 / 案件名</td><td>顧客管理・案件管理からの転記用</td></tr>
+      <tr><td>案件No.／顧客No.</td><td class="type">DECIMAL</td><td>案件No / 顧客No</td><td>転記キー</td></tr>
+      <tr><td>案件情報／関連活動履歴</td><td class="type">REFERENCE_TABLE</td><td>案件情報 / 関連活動履歴</td><td>関連レコード一覧</td></tr>
+    </table></div>
+  </div>
+
+  <div class="app-block">
+    <div class="app-block-head"><h3>顧客管理</h3><span class="uuid">eb0a2e41-…</span></div>
+    <p class="app-desc">取引先企業の基本・請求情報。顧客Noに紐づく担当者・案件・活動履歴を一画面で確認できる。</p>
+    <div class="table-scroll"><table>
+      <tr><th>ラベル</th><th>型</th><th>var</th><th>備考</th></tr>
+      <tr><td>顧客No.</td><td class="type">RECORD_ID</td><td>顧客No</td><td>必須</td></tr>
+      <tr><td>会社名</td><td class="type">SINGLE_LINE_TEXT</td><td>会社名</td><td></td></tr>
+      <tr><td>顧客ランク</td><td class="type">SINGLE_CHECK</td><td>顧客ランク</td><td>必須／A・B・C・D</td></tr>
+      <tr><td>〒／都道府県／住所／建物名</td><td class="type">TEXT・SELECT</td><td>郵便番号 他</td><td>都道府県は47都道府県フルオプション</td></tr>
+      <tr><td>電話番号／FAX／Webサイト</td><td class="type">LINK</td><td>各項目</td><td></td></tr>
+      <tr><td>業種</td><td class="type">SINGLE_SELECT</td><td>業種</td><td>17業種オプション（重複あり）</td></tr>
+      <tr><td>締め日／支払日</td><td class="type">SINGLE_SELECT</td><td>締め日 / 支払日</td><td>請求サイト設定</td></tr>
+      <tr><td>顧客情報メモ欄</td><td class="type">MULTIPLE_LINE_TEXT</td><td>顧客情報メモ欄</td><td></td></tr>
+      <tr><td>担当者一覧／案件一覧／活動履歴一覧</td><td class="type">REFERENCE_TABLE</td><td>各一覧</td><td>関連アプリを横断表示</td></tr>
+      <tr><td>グループ</td><td class="type">GROUP</td><td>グループ</td><td>顧客No・作成/更新情報を格納、JSで開閉制御</td></tr>
+    </table></div>
+  </div>
+
+  <div class="app-block">
+    <div class="app-block-head"><h3>案件管理</h3><span class="uuid">0bf25fe4-…</span></div>
+    <p class="app-desc">商談案件の進捗管理。パイプライン状況をグラフで可視化。</p>
+    <div class="table-scroll"><table>
+      <tr><th>ラベル</th><th>型</th><th>var</th><th>備考</th></tr>
+      <tr><td>案件No.</td><td class="type">RECORD_ID</td><td>案件No_</td><td>必須</td></tr>
+      <tr><td>会社名／顧客No.</td><td class="type">TEXT/DECIMAL</td><td>会社名 / 顧客No_</td><td>顧客管理からの転記キー</td></tr>
+      <tr><td>案件名</td><td class="type">SINGLE_LINE_TEXT</td><td>案件名</td><td></td></tr>
+      <tr><td>主担当／主担当組織</td><td class="type">USER_SELECT/ORG</td><td>主担当 他</td><td></td></tr>
+      <tr><td>商談フェーズ</td><td class="type">SINGLE_SELECT</td><td>商談フェーズ</td><td>商談予定〜受注/失注/保留 等9段階（下記ステート図）</td></tr>
+      <tr><td>確度</td><td class="type">SINGLE_SELECT</td><td>確度</td><td>100%/80%/60%/40%/20%</td></tr>
+      <tr><td>受注予定日／初回商談日／次回アクション日</td><td class="type">DATE</td><td>各項目</td><td></td></tr>
+      <tr><td>売上</td><td class="type">DECIMAL</td><td>売上</td><td>単位 ¥</td></tr>
+      <tr><td>提案商品</td><td class="type">SINGLE_SELECT</td><td>提案商品</td><td>商品A/B/C/その他</td></tr>
+      <tr><td>契約書/申込書</td><td class="type">FILE</td><td>契約書_申込書</td><td></td></tr>
+      <tr><td>詳細／アクション内容</td><td class="type">MULTIPLE_LINE_TEXT/TEXT</td><td>各項目</td><td></td></tr>
+      <tr><td>アクション担当者</td><td class="type">USER_SELECT</td><td>アクション担当者</td><td></td></tr>
+      <tr><td>活動履歴／関連レコード一覧</td><td class="type">REFERENCE_TABLE</td><td>活動履歴 / 同一顧客向け案件</td><td></td></tr>
+    </table></div>
+    <div class="mermaid-wrap" style="margin-top:1rem;">
+<pre class="mermaid">
+stateDiagram-v2
+    [*] --> 商談予定
+    商談予定 --> 提案中
+    提案中 --> 内示
+    内示 --> 受注
+    提案中 --> 失注
+    内示 --> 失注
+    商談予定 --> 保留_中止
+    提案中 --> 保留_中止
+    受注 --> [*]
+    失注 --> [*]
+    保留_中止 --> [*]
+
+    note right of 受注
+        BANT進行度として
+        P03:担当者の合意
+        P04:意思決定者の合意
+        P07:完了 も選択肢に存在
+    end note
+</pre>
+    </div>
+    <p class="diagram-caption">「商談フェーズ」フィールドの選択肢から復元した案件のライフサイクル。受注/失注/保留・中止で終了する。</p>
+  </div>
+
+  <div class="app-block">
+    <div class="app-block-head"><h3>担当者管理</h3><span class="uuid">e3a16406-…</span></div>
+    <p class="app-desc">取引先企業に紐づく個人担当者情報。</p>
+    <div class="table-scroll"><table>
+      <tr><th>ラベル</th><th>型</th><th>var</th><th>備考</th></tr>
+      <tr><td>担当者No.</td><td class="type">RECORD_ID</td><td>担当者No_</td><td>必須</td></tr>
+      <tr><td>顧客名／顧客No.</td><td class="type">TEXT/DECIMAL</td><td>顧客名 / 顧客No_</td><td>顧客管理からの転記キー</td></tr>
+      <tr><td>姓／名／フリガナ／お名前</td><td class="type">SINGLE_LINE_TEXT</td><td>各項目</td><td>姓名を分割＋結合表示用フィールドあり</td></tr>
+      <tr><td>部署／役職</td><td class="type">SINGLE_LINE_TEXT</td><td>各項目</td><td></td></tr>
+      <tr><td>電話番号／携帯番号／メールアドレス</td><td class="type">LINK</td><td>各項目</td><td></td></tr>
+      <tr><td>決裁権</td><td class="type">SINGLE_CHECK</td><td>決裁権</td><td>必須／なし・あり</td></tr>
+      <tr><td>備考</td><td class="type">MULTIPLE_LINE_TEXT</td><td>備考</td><td></td></tr>
+      <tr><td>添付ファイル（名刺等）</td><td class="type">FILE</td><td>添付ファイル_名刺等</td><td></td></tr>
+      <tr><td>関連担当者情報</td><td class="type">REFERENCE_TABLE</td><td>同一企業担当者</td><td></td></tr>
+    </table></div>
+  </div>
+
+  <div class="app-block">
+    <div class="app-block-head"><h3>見積書</h3><span class="uuid">776f326e-…</span></div>
+    <p class="app-desc">商品リストと連携し、型番・商品名・単価をコピーして見積書を作成。</p>
+    <div class="table-scroll"><table>
+      <tr><th>ラベル</th><th>型</th><th>var</th><th>備考</th></tr>
+      <tr><td>レコード番号</td><td class="type">RECORD_ID</td><td>レコード番号</td><td>必須</td></tr>
+      <tr><td>見積番号／見積日</td><td class="type">TEXT/DATE</td><td>各項目</td><td></td></tr>
+      <tr><td>宛名</td><td class="type">SINGLE_LINE_TEXT</td><td>宛名</td><td></td></tr>
+      <tr><td>合計金額</td><td class="type">CALC</td><td>合計金額</td><td>計算フィールド</td></tr>
+      <tr><td>備考</td><td class="type">MULTIPLE_LINE_TEXT</td><td>備考</td><td></td></tr>
+    </table></div>
+  </div>
+
+  <div class="app-block">
+    <div class="app-block-head"><h3>商品リスト</h3><span class="uuid">bab2a845-…</span></div>
+    <p class="app-desc">型番・商品名などの商品マスタ。見積書アプリにコピー可能。</p>
+    <div class="table-scroll"><table>
+      <tr><th>ラベル</th><th>型</th><th>var</th><th>備考</th></tr>
+      <tr><td>レコード番号</td><td class="type">RECORD_ID</td><td>レコード番号</td><td>必須</td></tr>
+      <tr><td>サービス種別</td><td class="type">SINGLE_CHECK</td><td>サービス種別</td><td>必須／kintone,Office,Garoon 等7種</td></tr>
+      <tr><td>型番／商品名</td><td class="type">SINGLE_LINE_TEXT</td><td>各項目</td><td></td></tr>
+      <tr><td>価格</td><td class="type">DECIMAL</td><td>価格</td><td></td></tr>
+      <tr><td>特記事項</td><td class="type">MULTIPLE_LINE_TEXT</td><td>特記事項</td><td></td></tr>
+    </table></div>
+  </div>
+
+  <div class="app-block">
+    <div class="app-block-head"><h3>旅費精算申請</h3><span class="uuid">c9a696ba-…</span></div>
+    <p class="app-desc">出張の旅費・経費申請。他アプリとの連携なし（独立業務）。</p>
+    <div class="table-scroll"><table>
+      <tr><th>ラベル</th><th>型</th><th>var</th><th>備考</th></tr>
+      <tr><td>No</td><td class="type">SINGLE_LINE_TEXT</td><td>No</td><td>必須</td></tr>
+      <tr><td>申請者／上長</td><td class="type">USER_SELECT</td><td>各項目</td><td>申請者は必須</td></tr>
+      <tr><td>期間（出発／帰着）</td><td class="type">DATE</td><td>出発 / 帰着</td><td></td></tr>
+      <tr><td>地域</td><td class="type">SINGLE_SELECT</td><td>地域</td><td>首都圏/関東/関西/東海/東北/中部・北陸/海外/その他</td></tr>
+      <tr><td>行き先／目的</td><td class="type">SINGLE_LINE_TEXT</td><td>各項目</td><td></td></tr>
+      <tr><td>日当</td><td class="type">DECIMAL</td><td>日当</td><td></td></tr>
+      <tr><td>旅費合計／経費合計／精算金額</td><td class="type">CALC</td><td>各項目</td><td>計算フィールド</td></tr>
+      <tr><td>備考</td><td class="type">MULTIPLE_LINE_TEXT</td><td>備考</td><td></td></tr>
+      <tr><td>グループ</td><td class="type">GROUP</td><td>グループ</td><td>申請者・作成/更新情報を格納</td></tr>
+    </table></div>
+  </div>
+
+</section>
+
+<footer>
+  出典: Z:\kintone\カスタマイズ入門.sptpl（space/template.json）を kintone-sptpl-analyzer スキルで解析。REFERENCE_TABLEの紐付け先アプリ設定はテンプレート出力上保持されないため、フィールド命名とアプリアクションの転記関係から関係を推定している。
+</footer>
+
+</div>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: true, theme: isDark ? 'dark' : 'default' });
+</script>
+</body>
+</html>
