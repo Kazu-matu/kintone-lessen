@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
@@ -9,8 +10,10 @@ const KINTONE_PASSWORD = process.env.KINTONE_PASSWORD;
 const APP_ID_PARENT = process.env.APP_ID_PARENT;
 const APP_ID_CHILD = process.env.APP_ID_CHILD;
 
+console.log('ENV VALS:', { KINTONE_BASE_URL, APP_ID_PARENT, APP_ID_CHILD });
+
 // 認証ヘッダーの生成 (Base64)
-const auth = Buffer.from(`${KINTONE_USER}:${KINTONE_PASSWORD}`).toString('base64');
+const auth = Buffer.from(`${KINTONE_USER || ''}:${KINTONE_PASSWORD || ''}`).toString('base64');
 const headers = {
   'X-Cybozu-Authorization': auth,
   'Content-Type': 'application/json'
@@ -34,7 +37,7 @@ function ensureDirectoryExistence(filePath) {
 async function takeScreenshot(page, caseName, imageName) {
   const screenshotPath = path.join(__dirname, 'evidence', caseName, imageName);
   ensureDirectoryExistence(screenshotPath);
-  await page.screenshot({ path: screenshotPath, fullPage: true });
+  await page.screenshot({ path: screenshotPath });
 }
 
 /**
@@ -46,7 +49,10 @@ async function loginKintone(page) {
   await page.fill('input[name="username"]', KINTONE_USER);
   await page.fill('input[name="password"]', KINTONE_PASSWORD);
   await page.click('input[type="submit"]');
-  // ポータルの表示待機
+  // ログイン成功後のリダイレクト（トップ画面またはkintone画面）を待つ
+  await page.waitForURL(url => url.href === `${KINTONE_BASE_URL}/` || url.href.includes(`${KINTONE_BASE_URL}/k/`));
+  // 明示的にkintoneポータルへ移動
+  await page.goto(`${KINTONE_BASE_URL}/k/`);
   await page.waitForURL(new RegExp(`${KINTONE_BASE_URL}/k/#/portal`));
 }
 
@@ -54,31 +60,39 @@ async function loginKintone(page) {
  * API経由でテスト用「受注管理」レコードを作成する
  */
 async function createTestParentRecord(request, recordNo, tableRows) {
+  const recordData = {
+    '受注日': { value: '2026-08-05' },
+    '顧客コード': { value: 'CS-003' },
+    '発注者': { value: recordNo }, // テスト識別用に発注者に recordNo を設定
+    '受注明細Table': {
+      value: tableRows.map(row => {
+        const item = {
+          '商品コード': { value: row.itemCode },
+          'カテゴリ': { value: row.category || '' },
+          '商品名': { value: row.itemName || '' },
+          '販売単価': { value: row.price ? String(row.price) : '0' },
+          '数量': { value: String(row.quantity) },
+          '小計': { value: String(row.subtotal) }
+        };
+        if (row.detailId) {
+          item['受注明細番号'] = { value: String(row.detailId) };
+        }
+        return { value: item };
+      })
+    }
+  };
+
   const response = await request.post(`${KINTONE_BASE_URL}/k/v1/record.json`, {
     headers,
     data: {
       app: APP_ID_PARENT,
-      record: {
-        '受注管理No': { value: recordNo },
-        '受注日': { value: '2026-08-05' },
-        '顧客コード': { value: 'CS-003' },
-        '受注明細Table': {
-          value: tableRows.map(row => ({
-            value: {
-              '商品コード': { value: row.itemCode },
-              'カテゴリ': { value: row.category || '' },
-              '商品名': { value: row.itemName || '' },
-              '販売単価': { value: row.price ? String(row.price) : '0' },
-              '数量': { value: String(row.quantity) },
-              '小計': { value: String(row.subtotal) },
-              '受注明細番号': { value: row.detailId ? String(row.detailId) : '' }
-            }
-          }))
-        }
-      }
+      record: recordData
     }
   });
 
+  if (!response.ok()) {
+    console.error('createTestParentRecord failed:', response.status(), await response.text());
+  }
   expect(response.ok()).toBe(true);
   const result = await response.json();
   return result.id;
@@ -88,29 +102,33 @@ async function createTestParentRecord(request, recordNo, tableRows) {
  * API経由でレコードの詳細データを取得する
  */
 async function getRecordDetails(request, appId, recordId) {
-  const response = await request.get(`${KINTONE_BASE_URL}/k/v1/record.json`, {
-    headers,
-    params: {
-      app: appId,
-      id: recordId
-    }
+  const url = `${KINTONE_BASE_URL}/k/v1/record.json?app=${appId}&id=${recordId}`;
+  console.log('getRecordDetails request:', url);
+  const response = await request.get(url, {
+    headers: { 'X-Cybozu-Authorization': auth }
   });
+  if (!response.ok()) {
+    console.error('getRecordDetails failed:', response.status(), await response.text());
+  }
   expect(response.ok()).toBe(true);
   const result = await response.json();
   return result.record;
 }
 
 /**
- * API経由で特定の受注管理Noに紐づく受注明細レコードを全削除する（テスト前クリーンアップ）
+ * API経由で特定の受注番号（親レコードID数値）に紐づく受注明細レコードを全削除する（テスト後クリーンアップ）
  */
-async function cleanupChildRecords(request, recordNo) {
-  const response = await request.get(`${KINTONE_BASE_URL}/k/v1/records.json`, {
-    headers,
-    params: {
-      app: APP_ID_CHILD,
-      query: `受注番号 = "${recordNo}"`
-    }
+async function cleanupChildRecords(request, parentRecordId) {
+  if (!parentRecordId) return;
+  const queryStr = `受注番号 = ${parentRecordId}`;
+  const url = `${KINTONE_BASE_URL}/k/v1/records.json?app=${APP_ID_CHILD}&query=${encodeURIComponent(queryStr)}`;
+  console.log('cleanupChildRecords request:', url);
+  const response = await request.get(url, {
+    headers: { 'X-Cybozu-Authorization': auth }
   });
+  if (!response.ok()) {
+    console.error('cleanupChildRecords GET failed:', response.status(), await response.text());
+  }
   expect(response.ok()).toBe(true);
   const result = await response.json();
   
@@ -123,6 +141,9 @@ async function cleanupChildRecords(request, recordNo) {
         ids: ids
       }
     });
+    if (!delResponse.ok()) {
+      console.error('cleanupChildRecords DELETE failed:', delResponse.status(), await delResponse.text());
+    }
     expect(delResponse.ok()).toBe(true);
   }
 }
@@ -160,8 +181,7 @@ test.describe('kintone テーブル展開機能の検証', () => {
       { itemCode: 'CCC01', category: '飲み物', itemName: 'コーラ', price: 90, quantity: 5, subtotal: 450 }
     ];
 
-    // 1. テストデータの作成 & クリーンアップ準備
-    await cleanupChildRecords(request, recordNo);
+    // 1. テストデータの作成
     const parentRecordId = await createTestParentRecord(request, recordNo, testItems);
 
     try {
@@ -176,8 +196,6 @@ test.describe('kintone テーブル展開機能の検証', () => {
       let alertMessage = '';
       page.once('dialog', async dialog => {
         alertMessage = dialog.message();
-        // アラート表示状態でのエビデンス取得
-        await takeScreenshot(page, caseName, '02_alert.png');
         await dialog.accept();
       });
 
@@ -199,13 +217,13 @@ test.describe('kintone テーブル展開機能の検証', () => {
       expect(parentTable[1].value.受注明細番号.value).toBe('');
 
       // 5. 子アプリ（受注明細）に遷移してエビデンスを取得
-      await page.goto(`${KINTONE_BASE_URL}/k/${APP_ID_CHILD}/?query=受注番号="${recordNo}"`);
+      await page.goto(`${KINTONE_BASE_URL}/k/${APP_ID_CHILD}/?query=受注番号="${parentRecordId}"`); // 子アプリでのクエリは親ID値を使用
       await page.waitForTimeout(2000); // 描画待機
       await takeScreenshot(page, caseName, '04_detail_records.png');
 
     } finally {
       // 後片付け
-      await cleanupChildRecords(request, recordNo);
+      await cleanupChildRecords(request, parentRecordId);
       await cleanupParentRecord(request, parentRecordId);
     }
   });
@@ -218,7 +236,6 @@ test.describe('kintone テーブル展開機能の検証', () => {
       { itemCode: 'CCC01', category: '飲み物', itemName: 'コーラ', price: 90, quantity: 5, subtotal: 450 }
     ];
 
-    await cleanupChildRecords(request, recordNo);
     const parentRecordId = await createTestParentRecord(request, recordNo, testItems);
 
     try {
@@ -230,7 +247,6 @@ test.describe('kintone テーブル展開機能の検証', () => {
       let alertMessage = '';
       page.once('dialog', async dialog => {
         alertMessage = dialog.message();
-        await takeScreenshot(page, caseName, '02_alert.png');
         await dialog.accept();
       });
 
@@ -261,12 +277,12 @@ test.describe('kintone テーブル展開機能の検証', () => {
       expect(child2.商品コード_0.value).toBe('CCC01');
 
       // 子アプリ（受注明細）に遷移してエビデンスを取得
-      await page.goto(`${KINTONE_BASE_URL}/k/${APP_ID_CHILD}/?query=受注番号="${recordNo}"`);
+      await page.goto(`${KINTONE_BASE_URL}/k/${APP_ID_CHILD}/?query=受注番号=${parentRecordId}`);
       await page.waitForTimeout(2000);
       await takeScreenshot(page, caseName, '04_detail_records.png');
 
     } finally {
-      await cleanupChildRecords(request, recordNo);
+      await cleanupChildRecords(request, parentRecordId);
       await cleanupParentRecord(request, parentRecordId);
     }
   });
@@ -275,54 +291,99 @@ test.describe('kintone テーブル展開機能の検証', () => {
     const caseName = 'CN-059-9-3';
     const recordNo = `E2E-CASE3-${Date.now()}`;
     
-    // 既存明細の仮レコード登録用
-    const dummyRecordNo = `DUMMY-${Date.now()}`;
-
-    // 先に子レコード（既存登録用）を2件直接APIで作成してIDを取得
-    const response1 = await request.post(`${KINTONE_BASE_URL}/k/v1/record.json`, {
-      headers,
-      data: {
-        app: APP_ID_CHILD,
-        record: {
-          '受注番号': { value: recordNo },
-          '商品コード_0': { value: 'BBB01' },
-          'カテゴリ': { value: 'お菓子' },
-          '商品名': { value: 'チョコレート' },
-          '単価': { value: '120' },
-          '数量': { value: '10' },
-          '小計': { value: '1200' }
-        }
-      }
-    });
-    const response2 = await request.post(`${KINTONE_BASE_URL}/k/v1/record.json`, {
-      headers,
-      data: {
-        app: APP_ID_CHILD,
-        record: {
-          '受注番号': { value: recordNo },
-          '商品コード_0': { value: 'CCC01' },
-          'カテゴリ': { value: '飲み物' },
-          '商品名': { value: 'コーラ' },
-          '単価': { value: '90' },
-          '数量': { value: '5' },
-          '小計': { value: '450' }
-        }
-      }
-    });
-    
-    const existingId1 = (await response1.json()).id;
-    const existingId2 = (await response2.json()).id;
-
-    // 親レコード作成 (1・2行目は既存明細番号あり、3行目は新規で番号なし)
-    const testItems = [
-      { itemCode: 'BBB01', category: 'お菓子', itemName: 'チョコレート', price: 120, quantity: 20, subtotal: 2400, detailId: existingId1 }, // 数量を10->20に変更
-      { itemCode: 'CCC01', category: '飲み物', itemName: 'コーラ', price: 90, quantity: 15, subtotal: 1350, detailId: existingId2 }, // 数量を5->15に変更
-      { itemCode: 'AAA01', category: 'お菓子', itemName: 'スナック', price: 150, quantity: 2, subtotal: 300, detailId: '' } // 新規追加行
+    // 1. まず親レコードを一度作成する（数量などは初期値）
+    const initialItems = [
+      { itemCode: 'BBB01', category: 'お菓子', itemName: 'チョコレート', price: 120, quantity: 10, subtotal: 1200 },
+      { itemCode: 'CCC01', category: '飲み物', itemName: 'コーラ', price: 90, quantity: 5, subtotal: 450 },
+      { itemCode: 'AAA01', category: 'お菓子', itemName: 'スナック', price: 150, quantity: 2, subtotal: 300 }
     ];
-
-    const parentRecordId = await createTestParentRecord(request, recordNo, testItems);
+    const parentRecordId = await createTestParentRecord(request, recordNo, initialItems);
 
     try {
+      // 2. 作成した親IDを使って、子レコード（既存明細）を2件APIで直接作成
+      const response1 = await request.post(`${KINTONE_BASE_URL}/k/v1/record.json`, {
+        headers,
+        data: {
+          app: APP_ID_CHILD,
+          record: {
+            '受注番号': { value: String(parentRecordId) }, // 親ID数値を文字列で渡す
+            '商品コード_0': { value: 'BBB01' },
+            'カテゴリ': { value: 'お菓子' },
+            '商品名': { value: 'チョコレート' },
+            '単価': { value: '120' },
+            '数量': { value: '10' },
+            '小計': { value: '1200' }
+          }
+        }
+      });
+      const response2 = await request.post(`${KINTONE_BASE_URL}/k/v1/record.json`, {
+        headers,
+        data: {
+          app: APP_ID_CHILD,
+          record: {
+            '受注番号': { value: String(parentRecordId) },
+            '商品コード_0': { value: 'CCC01' },
+            'カテゴリ': { value: '飲み物' },
+            '商品名': { value: 'コーラ' },
+            '単価': { value: '90' },
+            '数量': { value: '5' },
+            '小計': { value: '450' }
+          }
+        }
+      });
+      expect(response1.ok()).toBe(true);
+      expect(response2.ok()).toBe(true);
+      const existingId1 = (await response1.json()).id;
+      const existingId2 = (await response2.json()).id;
+
+      // 3. 親レコードのサブテーブルを更新し、1・2行目に明細IDを埋め込み、数量などの変更を加える
+      const updateResponse = await request.put(`${KINTONE_BASE_URL}/k/v1/record.json`, {
+        headers,
+        data: {
+          app: APP_ID_PARENT,
+          id: parentRecordId,
+          record: {
+            '受注明細Table': {
+              value: [
+                {
+                  value: {
+                    '商品コード': { value: 'BBB01' },
+                    'カテゴリ': { value: 'お菓子' },
+                    '商品名': { value: 'チョコレート' },
+                    '販売単価': { value: '120' },
+                    '数量': { value: '20' }, // 10 -> 20 へ変更
+                    '小計': { value: '2400' },
+                    '受注明細番号': { value: String(existingId1) } // 既存IDを設定
+                  }
+                },
+                {
+                  value: {
+                    '商品コード': { value: 'CCC01' },
+                    'カテゴリ': { value: '飲み物' },
+                    '商品名': { value: 'コーラ' },
+                    '販売単価': { value: '90' },
+                    '数量': { value: '15' }, // 5 -> 15 へ変更
+                    '小計': { value: '1350' },
+                    '受注明細番号': { value: String(existingId2) } // 既存IDを設定
+                  }
+                },
+                {
+                  value: {
+                    '商品コード': { value: 'AAA01' },
+                    'カテゴリ': { value: 'お菓子' },
+                    '商品名': { value: 'スナック' },
+                    '販売単価': { value: '150' },
+                    '数量': { value: '2' },
+                    '小計': { value: '300' },
+                    '受注明細番号': { value: '' } // 新規なので空
+                  }
+                }
+              ]
+            }
+          }
+        }
+      });
+      expect(updateResponse.ok()).toBe(true);
       await page.goto(`${KINTONE_BASE_URL}/k/${APP_ID_PARENT}/show#record=${parentRecordId}`);
       await page.waitForSelector('#btn_table_expand_3');
       
@@ -331,7 +392,6 @@ test.describe('kintone テーブル展開機能の検証', () => {
       let alertMessage = '';
       page.once('dialog', async dialog => {
         alertMessage = dialog.message();
-        await takeScreenshot(page, caseName, '02_alert.png');
         await dialog.accept();
       });
 
@@ -365,12 +425,12 @@ test.describe('kintone テーブル展開機能の検証', () => {
       expect(child2.数量.value).toBe('15'); // 5 -> 15
 
       // 子アプリ（受注明細）に遷移してエビデンスを取得
-      await page.goto(`${KINTONE_BASE_URL}/k/${APP_ID_CHILD}/?query=受注番号="${recordNo}"`);
+      await page.goto(`${KINTONE_BASE_URL}/k/${APP_ID_CHILD}/?query=受注番号=${parentRecordId}`);
       await page.waitForTimeout(2000);
       await takeScreenshot(page, caseName, '04_detail_records.png');
 
     } finally {
-      await cleanupChildRecords(request, recordNo);
+      await cleanupChildRecords(request, parentRecordId);
       await cleanupParentRecord(request, parentRecordId);
     }
   });
