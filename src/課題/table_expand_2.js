@@ -1,6 +1,6 @@
 /**
  * 課題名: CN-058-9-2 明細登録 ＆ 明細番号（採番ID）の親テーブル反映
- * 版数: 1.0.3
+ * 版数: 1.0.5
  * 作成日: 2026-08-02
  * 更新日: 2026-08-05
  * 作成者: Antigravity
@@ -11,8 +11,15 @@
   'use strict';
 
   // 転送先「受注明細」アプリのID
-  const DETAIL_APP_ID = 12;
+  const DETAIL_APP_ID = 24;
 
+  /**
+   * レコード詳細画面が表示されたときに実行されるイベントハンドラ。
+   * 詳細画面に「テーブル展開#2」ボタンを設置します。
+   * 
+   * @param {Object} event kintoneのイベントオブジェクト
+   * @returns {Object} イベントオブジェクト
+   */
   kintone.events.on('app.record.detail.show', function(event) {
     const record = event.record;
 
@@ -27,6 +34,13 @@
     btn.className = 'kintoneplugin-button-normal';
     btn.style.margin = '10px';
 
+    /**
+     * ボタンがクリックされたときに実行される非同期処理。
+     * サブテーブルのデータを取得し、受注明細アプリへの一括登録(POST)後、
+     * 発行されたID群を親レコードのサブテーブルへ書き戻し更新(PUT)します。
+     * 
+     * @returns {Promise<void>}
+     */
     btn.addEventListener('click', async function() {
       const subtable = record.受注明細Table ? record.受注明細Table.value : [];
       if (!subtable || subtable.length === 0) {
@@ -34,7 +48,12 @@
         return;
       }
 
-      // 明細アプリへPOSTするデータ作成
+      /**
+       * サブテーブルの各行から受注明細アプリ用の登録データを生成するコールバック関数。
+       * 
+       * @param {Object} row サブテーブルの1行分のデータ
+       * @returns {Object} 登録用レコードオブジェクト
+       */
       const recordsToPost = subtable.map(function(row) {
         return {
           '受注番号': { value: record.受注管理No.value },
@@ -60,7 +79,13 @@
         // 返却された明細レコードID群 (例: [101, 102])
         const postedIds = resp.ids;
 
-        // Step 2: 親アプリのサブテーブル各行に採番された「受注明細番号」を付与
+        /**
+         * 登録された明細レコードのIDを、対応するサブテーブル行の「受注明細番号」へ反映するコールバック関数。
+         * 
+         * @param {Object} row サブテーブルの1行分のデータ
+         * @param {number} index インデックス番号
+         * @returns {Object} 更新用サブテーブル行オブジェクト
+         */
         const updatedTable = subtable.map(function(row, index) {
           return {
             id: row.id, // サブテーブル既存行の内部IDを維持

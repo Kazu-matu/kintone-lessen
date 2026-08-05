@@ -1,6 +1,6 @@
 /**
  * 課題名: CN-059-9-3 明細登録 ＆ 更新分岐処理（async/await + Promise.all版）
- * 版数: 1.0.4
+ * 版数: 1.0.6
  * 作成日: 2026-08-02
  * 更新日: 2026-08-05
  * 作成者: Antigravity
@@ -11,8 +11,15 @@
   'use strict';
 
   // 転送先「受注明細」アプリのID
-  const DETAIL_APP_ID = 12;
+  const DETAIL_APP_ID = 24;
 
+  /**
+   * レコード詳細画面が表示されたときに実行されるイベントハンドラ。
+   * 詳細画面に「テーブル展開#3」ボタンを設置します。
+   * 
+   * @param {Object} event kintoneのイベントオブジェクト
+   * @returns {Object} イベントオブジェクト
+   */
   kintone.events.on('app.record.detail.show', function(event) {
     const record = event.record;
 
@@ -27,6 +34,13 @@
     btn.className = 'kintoneplugin-button-normal';
     btn.style.margin = '10px';
 
+    /**
+     * ボタンがクリックされたときに実行される非同期処理。
+     * 新規登録明細のPOSTと既存明細のPUT更新を並行（Promise.all）して行い、
+     * 親アプリのサブテーブル側へ明細IDを書き戻し更新します。
+     * 
+     * @returns {Promise<void>}
+     */
     btn.addEventListener('click', async function() {
       const subtable = record.受注明細Table ? record.受注明細Table.value : [];
       if (!subtable || subtable.length === 0) {
@@ -38,6 +52,9 @@
       const newRows = [];
       const updateRecords = [];
 
+      /**
+       * サブテーブルの各行を、新規登録対象（受注明細番号なし）と既存更新対象（受注明細番号あり）に分類する。
+       */
       subtable.forEach(function(row, index) {
         const detailNo = row.value.受注明細番号 ? row.value.受注明細番号.value : '';
         const payload = {
@@ -78,6 +95,9 @@
             'POST',
             { app: DETAIL_APP_ID, records: recordsToPost }
           ).then(function(resp) {
+            /**
+             * POST処理成功後、新規登録された明細の行インデックスと新規発行されたレコードIDのマッピングを作成する。
+             */
             return newRows.map(function(item, idx) {
               return {
                 rowIndex: item.rowIndex,
@@ -107,6 +127,9 @@
         const newIdMappings = results[0]; // 新規作成時のIDマッピング
 
         // サブテーブルのコピーを作成
+        /**
+         * サブテーブルのディープコピーを生成するコールバック関数。
+         */
         const updatedTable = subtable.map(function(row) {
           return {
             id: row.id,

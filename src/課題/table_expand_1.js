@@ -1,6 +1,6 @@
 /**
  * 課題名: CN-057-9-1 サブテーブル展開#1（新規一括登録）
- * 版数: 1.0.4
+ * 版数: 1.0.5
  * 作成日: 2026-08-02
  * 更新日: 2026-08-05
  * 作成者: Antigravity
@@ -13,7 +13,13 @@
   // 転送先「受注明細」アプリのID
   const DETAIL_APP_ID = 24;
 
-  // レコード詳細画面表示イベント
+  /**
+   * レコード詳細画面が表示されたときに実行されるイベントハンドラ。
+   * 詳細画面に「テーブル展開#1」ボタンを設置します。
+   * 
+   * @param {Object} event kintoneのイベントオブジェクト
+   * @returns {Object} イベントオブジェクト
+   */
   kintone.events.on('app.record.detail.show', function (event) {
     const record = event.record;
 
@@ -30,7 +36,12 @@
     btn.className = 'kintoneplugin-button-normal';
     btn.style.margin = '10px';
 
-    // ボタンクリック時の処理 (async/await)
+    /**
+     * ボタンがクリックされたときに実行される非同期処理。
+     * サブテーブルのデータを取得し、受注明細アプリへ一括登録（POST）します。
+     * 
+     * @returns {Promise<void>}
+     */
     btn.addEventListener('click', async function () {
       // サブテーブルの取得
       const subtable = record.受注明細Table ? record.受注明細Table.value : [];
@@ -39,7 +50,12 @@
         return;
       }
 
-      // 受注明細アプリへ登録(POST)するレコードデータ配列の組み立て
+      /**
+       * サブテーブルの各行から受注明細アプリ用の登録データを生成するコールバック関数。
+       * 
+       * @param {Object} row サブテーブルの1行分のデータ
+       * @returns {Object} 登録用レコードオブジェクト
+       */
       const recordsToPost = subtable.map(function (row) {
         return {
           '受注番号': { value: record.受注管理No.value },
